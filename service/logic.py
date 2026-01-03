@@ -29,6 +29,8 @@ class GameService:
             raise ValueError("Nickname is required")
         with RDBProc() as rdb_proc:
             rdb_proc.update_nickname(user_uuid, nickname)
+        with KvProc() as kv_proc:
+            kv_proc.update_nickname(user_uuid, nickname)
 
     def get_user_history(self, game_name: str, level: str, user_uuid: str, limit: int = 10):
         if limit <= 0:

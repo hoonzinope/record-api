@@ -96,8 +96,10 @@ class RDBProc:
         with self.engine.begin() as conn:
             conn.execute(update_query, {"nickname": nickname, "user_uuid": user_uuid})
 
-    def select_query(self, query: str, params: dict = {}) -> list[dict]:
+    def select_query(self, query, params: dict | None = None) -> list[dict]:
+        if params is None:
+            params = {}
         with self.engine.begin() as conn:
-            result = conn.execute(text(query), params)
-            records = [dict(row) for row in result]
-            return records
+            statement = query if hasattr(query, "compile") else text(query)
+            result = conn.execute(statement, params)
+            return [dict(row._mapping) for row in result]

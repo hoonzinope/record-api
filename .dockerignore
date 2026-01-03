@@ -1,0 +1,14 @@
+.env
+.env.prod
+venv/
+.git
+.github
+.idea
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.python-version
+README.md
+AGENTS.md
+info.md

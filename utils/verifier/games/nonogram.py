@@ -10,16 +10,38 @@ class NonogramVerifier(BaseVerifier):
         if not answers:
             return False
 
-        for entry in answers:
+        if not self._validate_entries(answers, require_state=True):
+            return False
+        if not self._validate_entries(data.get("wrong_answers", []), require_state=False):
+            return False
+        if not self._validate_entries(data.get("hint_events", []), require_state=False):
+            return False
+
+        return True
+
+    def _validate_entries(self, entries: list, require_state: bool) -> bool:
+        if not isinstance(entries, list):
+            return False
+        seen_cells = set()
+        for entry in entries:
             if not isinstance(entry, dict):
                 return False
-            row = entry.get("row")
-            col = entry.get("col")
-            if not isinstance(row, int) or not isinstance(col, int):
+            cell_key = self._get_cell_key_from_entry(entry)
+            if not cell_key:
                 return False
-            if row < 0 or col < 0:
+            if cell_key in seen_cells:
                 return False
-            if "filled" not in entry and "state" not in entry:
-                return False
-
+            seen_cells.add(cell_key)
+            if require_state:
+                if "filled" in entry:
+                    if not isinstance(entry.get("filled"), bool):
+                        return False
+                elif "state" in entry:
+                    state = entry.get("state")
+                    if not isinstance(state, str):
+                        return False
+                    if state not in ("filled", "marked", "empty", "clear"):
+                        return False
+                else:
+                    return False
         return True
