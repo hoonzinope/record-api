@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from model.game_record import GameRecord
-from service.logic import GameService
+from service.logic import GameService, ConnService
 from utils.generate_uuid import GenerateUUID
 
 app = FastAPI()
@@ -52,7 +52,10 @@ def record_to_dict(record: GameRecord) -> dict:
 
 @app.get("/record/health")
 def health_check():
-    return {"status": "ok"}
+    #check database connection
+    conn_service = ConnService()
+    ping = conn_service.ping()
+    return {"status": "ok", "ping" : ping}
 
 
 @app.get("/record/user")

@@ -3,6 +3,26 @@ from repository.rdb_proc import RDBProc
 from repository.kv_proc import KvProc
 from utils.verifier.registry import get_verifier
 
+class ConnService:
+    def __init__(self):
+        pass
+
+    def ping(self) -> dict[str, bool]:
+        result = {"rdb": False, "kv": False}
+        try:
+            with RDBProc() as rdb_proc:
+                rdb_status = rdb_proc.ping()
+                result.update({"rdb": rdb_status})
+        except Exception:
+            result.update({"rdb": False})
+        try:
+            with KvProc() as kv_proc:
+                kv_status = kv_proc.ping()
+                result.update({"kv": kv_status})
+        except Exception:
+            result.update({"kv": False})
+        return result
+
 class GameService:
     def __init__(self):
         pass

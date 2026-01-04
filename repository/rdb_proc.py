@@ -22,6 +22,11 @@ class RDBProc:
             self.engine.dispose()
             self._disposed = True
 
+    def ping(self) -> bool:
+        with self.engine.begin() as conn:
+            result = conn.execute(text("SELECT 1"))
+            return result.scalar() == 1
+
     # insert game record
     def insert_game_record(self, record: GameRecord) -> int:
         insert_query = text("""
