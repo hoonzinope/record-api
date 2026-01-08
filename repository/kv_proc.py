@@ -29,6 +29,9 @@ class KvProc:
             self.redis.close()
             self._disposed = True
 
+    def ping(self) -> bool:
+        return bool(self.redis.ping())
+
     # game record save for top ranking
     def insert_game_record(self, record: GameRecord) -> None:
         if not record.is_verified:
