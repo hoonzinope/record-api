@@ -1,4 +1,6 @@
 # service to handle business logic
+import time
+
 from repository.rdb_proc import RDBProc
 from repository.kv_proc import KvProc
 from utils.verifier.registry import get_verifier
@@ -34,15 +36,31 @@ class GameService:
         if record.mistake_count < 0 or record.hint_count < 0:
             raise ValueError("Counts must be non-negative")
 
+        if not self._is_session_valid(record.game_name, record.level, record.user_uuid, record.clear_time):
+            return 0, False
+
         is_verified = self.verify_record(record, verification_payload)
         record.is_verified = is_verified
+        if not is_verified:
+            return 0, False
 
         with RDBProc() as rdb_proc:
             record_id = rdb_proc.insert_game_record(record)
-        if is_verified:
-            with KvProc() as kv_proc:
-                kv_proc.insert_game_record(record)
+        with KvProc() as kv_proc:
+            kv_proc.insert_game_record(record)
         return record_id, is_verified
+
+    def start_session(self, game_name: str, level: str, user_uuid: str) -> None:
+        with KvProc() as kv_proc:
+            kv_proc.insert_game_session(game_name, level, user_uuid)
+
+    def _is_session_valid(self, game_name: str, level: str, user_uuid: str, clear_time: int) -> bool:
+        with KvProc() as kv_proc:
+            start_time = kv_proc.get_game_session_start(game_name, level, user_uuid)
+        if start_time is None:
+            return False
+        elapsed_seconds = int(time.time()) - start_time
+        return elapsed_seconds >= clear_time
 
     def update_nickname(self, user_uuid: str, nickname: str) -> None:
         if not nickname:

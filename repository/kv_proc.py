@@ -174,6 +174,16 @@ class KvProc:
             return True
         return False
 
+    def get_game_session_start(self, game_name: str, level: str, user_uuid: str) -> int | None:
+        key = f"session:{game_name}:{level}:{user_uuid}"
+        value = self.redis.get(key)
+        if not value:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     def renew_game_session(self, game_name: str, level: str, user_uuid: str) -> None:
         key = f"session:{game_name}:{level}:{user_uuid}"
         self.redis.expire(key, 3600)  # 세션 유효기간 1시간 연장
