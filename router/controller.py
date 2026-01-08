@@ -1,6 +1,7 @@
+import os
 from typing import Any, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from model.game_record import GameRecord
@@ -9,6 +10,17 @@ from utils.generate_uuid import GenerateUUID
 
 app = FastAPI()
 service = GameService()
+RECORD_API_KEY = os.getenv("RECORD_API_KEY", "")
+ALLOWED_ORIGINS = {"https://urrrm.com", "https://www.urrrm.com"}
+
+
+def verify_request(request: Request, x_record_key: Optional[str] = Header(default=None, alias="X-Record-Key")):
+    if RECORD_API_KEY:
+        if not x_record_key or x_record_key != RECORD_API_KEY:
+            raise HTTPException(status_code=403, detail="Unauthorized")
+    origin = request.headers.get("origin")
+    if origin and origin not in ALLOWED_ORIGINS:
+        raise HTTPException(status_code=403, detail="Forbidden origin")
 
 
 class ActionLogEntry(BaseModel):
@@ -51,7 +63,9 @@ def record_to_dict(record: GameRecord) -> dict:
 
 
 @app.get("/record/health")
-def health_check():
+def health_check(key: Optional[str] = None):
+    if key != "health_8f3c9b2a":
+        raise HTTPException(status_code=403, detail="Forbidden")
     #check database connection
     conn_service = ConnService()
     ping = conn_service.ping()
@@ -59,7 +73,7 @@ def health_check():
 
 
 @app.get("/record/user")
-def get_user():
+def get_user(_: None = Depends(verify_request)):
     generate_uuid = GenerateUUID()
     uuid = generate_uuid.get()
     nickname = uuid[0:8]
@@ -67,7 +81,7 @@ def get_user():
 
 
 @app.patch("/record/user/{user_uuid}")
-def update_nickname(user_uuid: str, payload: NicknameUpdateRequest):
+def update_nickname(user_uuid: str, payload: NicknameUpdateRequest, _: None = Depends(verify_request)):
     try:
         service.update_nickname(user_uuid, payload.nickname)
     except ValueError as exc:
@@ -76,7 +90,7 @@ def update_nickname(user_uuid: str, payload: NicknameUpdateRequest):
 
 
 @app.post("/record")
-def insert_game_record(payload: RecordCreateRequest, request: Request):
+def insert_game_record(payload: RecordCreateRequest, request: Request, _: None = Depends(verify_request)):
     user_ip = request.client.host if request.client else ""
     nickname = payload.nickname or "Guest"
     record = GameRecord(
@@ -106,7 +120,13 @@ def insert_game_record(payload: RecordCreateRequest, request: Request):
 
 
 @app.get("/record/history/{game_name}/{level}/{user_uuid}")
-def get_user_history(game_name: str, level: str, user_uuid: str, limit: int = 10):
+def get_user_history(
+    game_name: str,
+    level: str,
+    user_uuid: str,
+    limit: int = 10,
+    _: None = Depends(verify_request),
+):
     try:
         records = service.get_user_history(game_name, level, user_uuid, limit)
     except ValueError as exc:
@@ -115,7 +135,7 @@ def get_user_history(game_name: str, level: str, user_uuid: str, limit: int = 10
 
 
 @app.get("/record/ranking/{game_name}/{level}")
-def get_ranking(game_name: str, level: str, limit: int = 10):
+def get_ranking(game_name: str, level: str, limit: int = 10, _: None = Depends(verify_request)):
     try:
         records = service.get_top_rankings(game_name, level, limit)
     except ValueError as exc:
