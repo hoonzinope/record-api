@@ -65,7 +65,13 @@ class KvProc:
             if not record or not record.is_verified:
                 continue
             result.append(record)
-        result.sort(key=lambda item: (item.clear_time, item.mistake_count, item.hint_count))
+            result.append(record)
+        
+        if game_name in ['woodoku', '2048']:
+            result.sort(key=lambda item: item.score, reverse=True)
+        else:
+            result.sort(key=lambda item: (item.clear_time, item.mistake_count, item.hint_count))
+            
         return result[:limit]
 
     @staticmethod
@@ -77,7 +83,9 @@ class KvProc:
             "mistake_count": record.mistake_count,
             "hint_count": record.hint_count,
             "is_verified": record.is_verified,
+            "is_verified": record.is_verified,
             "user_ip": record.user_ip,
+            "score": record.score,
         }
         return json.dumps(payload, separators=(",", ":"), ensure_ascii=True)
 
@@ -92,6 +100,9 @@ class KvProc:
             clear_time = KvProc._safe_int(data.get("clear_time"))
             mistake_count = KvProc._safe_int(data.get("mistake_count"))
             hint_count = KvProc._safe_int(data.get("hint_count"))
+            score = KvProc._safe_int(data.get("score"))
+            if score is None:
+                score = 0
             if clear_time is None or mistake_count is None or hint_count is None:
                 return None
             return GameRecord(
@@ -104,6 +115,7 @@ class KvProc:
                 hint_count=hint_count,
                 is_verified=bool(data.get("is_verified", False)),
                 user_ip=str(data.get("user_ip", "")),
+                score=score,
             )
 
         # Backward compatibility for old "colon-joined" members.

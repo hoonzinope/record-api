@@ -31,16 +31,18 @@ class RDBProc:
     def insert_game_record(self, record: GameRecord) -> int:
         insert_query = text("""
             INSERT INTO game_records
-            (game_name, level, user_uuid, nickname, clear_time, mistake_count, hint_count, is_verified, user_ip)
+            (game_name, level, user_uuid, nickname, clear_time, score, mistake_count, hint_count, is_verified, user_ip)
             VALUES
-            (:game_name, :level, :user_uuid, :nickname, :clear_time, :mistake_count, :hint_count, :is_verified, :user_ip)
+            (:game_name, :level, :user_uuid, :nickname, :clear_time, :score, :mistake_count, :hint_count, :is_verified, :user_ip)
         """)
         params = {
             "game_name": record.game_name,
             "level": record.level,
             "user_uuid": record.user_uuid,
             "nickname": record.nickname,
+            "nickname": record.nickname,
             "clear_time": record.clear_time,
+            "score": record.score,
             "mistake_count": record.mistake_count,
             "hint_count": record.hint_count,
             "is_verified": record.is_verified,
@@ -54,10 +56,15 @@ class RDBProc:
     # get ranking by game name and level
     def get_ranking(self, game_name: str, level: str, limit: int = 10) -> list[GameRecord]:
         # Retrieve the top 'limit' rankings for the specified game and level
+        if game_name in ['woodoku', '2048']:
+            order_clause = "score DESC, clear_time ASC"
+        else:
+            order_clause = "clear_time ASC, mistake_count ASC, hint_count ASC"
+        
         select_query = text(f"""
             SELECT * FROM game_records
             WHERE game_name = :game_name AND level = :level AND is_verified = TRUE
-            ORDER BY clear_time ASC, mistake_count ASC, hint_count ASC
+            ORDER BY {order_clause}
             LIMIT :limit
         """)
         params = {

@@ -1,0 +1,18 @@
+services:
+  # 1. FastAPI Application
+  record-api:
+    image: record-api:latest
+    container_name: record-api
+    restart: always
+    ports:
+      - "8888:8888"
+    env_file:
+      - .env.record.prod
+    networks:
+      - hoonzi_network
+
+networks:
+  hoonzi_network:
+    driver: bridge
+
+# docker-compose -f record-api-docker-compose.yml up -d

@@ -9,6 +9,7 @@ class GameRecord:
     user_uuid: str = ""
     nickname: str = ""
     clear_time: int = 0
+    score: int = 0
     mistake_count: int = 0
     hint_count: int = 0
     is_verified: bool = False

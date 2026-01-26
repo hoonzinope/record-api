@@ -50,6 +50,7 @@ class RecordCreateRequest(BaseModel):
     user_uuid: str
     nickname: Optional[str] = None
     clear_time: int = Field(..., gt=0)
+    score: int = 0
     mistake_count: int = Field(0, ge=0)
     hint_count: int = Field(0, ge=0)
     answers: List[dict[str, Any]] = Field(default_factory=list)
@@ -76,6 +77,7 @@ def record_to_dict(record: GameRecord) -> dict:
         "user_uuid": record.user_uuid,
         "nickname": record.nickname,
         "clear_time": record.clear_time,
+        "score": record.score,
         "mistake_count": record.mistake_count,
         "hint_count": record.hint_count,
         "is_verified": record.is_verified,
@@ -142,7 +144,14 @@ def insert_game_record(payload: RecordCreateRequest, request: Request, _: None =
         raise HTTPException(status_code=400, detail="Hint events list too large")
     if len(payload.action_log) > MAX_LIST_LEN:
         raise HTTPException(status_code=400, detail="Action log too large")
-    user_ip = request.client.host if request.client else ""
+    # Detect real user IP behind Cloudflare/Nginx
+    x_forwarded_for = request.headers.get("X-Forwarded-For")
+    user_ip = (
+        request.headers.get("CF-Connecting-IP") or 
+        request.headers.get("X-Real-IP") or 
+        (x_forwarded_for.split(",")[0].strip() if x_forwarded_for else None) or
+        (request.client.host if request.client else "")
+    )
     nickname = payload.nickname or "Guest"
     record = GameRecord(
         game_name=payload.game_name,
@@ -150,6 +159,7 @@ def insert_game_record(payload: RecordCreateRequest, request: Request, _: None =
         user_uuid=payload.user_uuid,
         nickname=nickname,
         clear_time=payload.clear_time,
+        score=payload.score,
         mistake_count=payload.mistake_count,
         hint_count=payload.hint_count,
         user_ip=user_ip,
@@ -205,6 +215,7 @@ def get_ranking(game_name: str, level: str, limit: int = 10, _: None = Depends(v
                 "user_uuid": record.user_uuid,
                 "nickname": record.nickname,
                 "clear_time": record.clear_time,
+                "score": record.score,
                 "mistake_count": record.mistake_count,
                 "hint_count": record.hint_count,
             }

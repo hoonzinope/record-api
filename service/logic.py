@@ -34,7 +34,9 @@ GAME_WHITELIST = {
     "2048": {"size-3", "size-4", "size-5", "size-6", "size-8"},
     "solitaire": {"classic", "draw3"},
     "shanghai": {"mobile", "desktop"},
-    "mahjong": {"16x10", "6x10"}
+    "mahjong": {"16x10", "6x10"},
+    "jigsaw-sudoku": {"size-5", "size-7", "size-9"},
+    "woodoku": {"classic"}
 }
 
 class GameService:

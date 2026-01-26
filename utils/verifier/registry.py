@@ -15,6 +15,8 @@ VERIFIER_MAP = {
     "hidato": HidatoVerifier(),
     "killer-sudoku": KillerSudokuVerifier(),
     "shikaku": ShikakuVerifier(),
+    "jigsaw-sudoku": DEFAULT_VERIFIER,
+    "woodoku": DEFAULT_VERIFIER,
 }
 
 
