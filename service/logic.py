@@ -3,6 +3,7 @@ import time
 
 from repository.rdb_proc import RDBProc
 from repository.kv_proc import KvProc
+from utils.ranking_policy import sort_key_for
 from utils.verifier.registry import get_verifier
 
 class ConnService:
@@ -36,7 +37,10 @@ GAME_WHITELIST = {
     "shanghai": {"mobile", "desktop"},
     "mahjong": {"16x10", "6x10"},
     "jigsaw-sudoku": {"size-5", "size-7", "size-9"},
-    "woodoku": {"classic"}
+    "woodoku": {"classic"},
+    "tetris": {"classic"},
+    "wordle": {"daily", "random"},
+    "kordle": {"daily", "random"},
 }
 
 class GameService:
@@ -45,6 +49,8 @@ class GameService:
 
     def add_game_record(self, record, verification_payload: dict) -> tuple[int, bool]:
         # Business logic before inserting a game record
+        if record.clear_time_ns <= 0:
+            raise ValueError("Clear time(ns) cannot be negative")
         if record.clear_time <= 0:
             raise ValueError("Clear time cannot be negative")
         if record.mistake_count < 0 or record.hint_count < 0:
@@ -54,7 +60,7 @@ class GameService:
         if valid_levels is None or record.level not in valid_levels:
             raise ValueError(f"Invalid game_name or level: {record.game_name} / {record.level}")
 
-        if not self._is_session_valid(record.game_name, record.level, record.user_uuid, record.clear_time):
+        if not self._is_session_valid(record.game_name, record.level, record.user_uuid, record.clear_time_ns):
             return 0, False
 
         is_verified = self.verify_record(record, verification_payload)
@@ -72,13 +78,13 @@ class GameService:
         with KvProc() as kv_proc:
             kv_proc.insert_game_session(game_name, level, user_uuid)
 
-    def _is_session_valid(self, game_name: str, level: str, user_uuid: str, clear_time: int) -> bool:
+    def _is_session_valid(self, game_name: str, level: str, user_uuid: str, clear_time_ns: int) -> bool:
         with KvProc() as kv_proc:
             start_time = kv_proc.get_game_session_start(game_name, level, user_uuid)
         if start_time is None:
             return False
-        elapsed_seconds = int(time.time()) - start_time
-        return elapsed_seconds >= clear_time
+        elapsed_ns = time.time_ns() - start_time
+        return elapsed_ns >= clear_time_ns
 
     def update_nickname(self, user_uuid: str, nickname: str) -> None:
         if not nickname:
@@ -101,17 +107,19 @@ class GameService:
         with KvProc() as kv_proc:
             records = kv_proc.get_ranking(game_name, level, limit)
         if records:
-            return records
+            records.sort(key=lambda item: sort_key_for(game_name, item))
+            return records[:limit]
         with RDBProc() as rdb_proc:
             records = rdb_proc.get_ranking(game_name, level, limit)
         if records:
+            records.sort(key=lambda item: sort_key_for(game_name, item))
             with KvProc() as kv_proc:
                 kv_proc.insert_game_records(records)
-        return records
+        return records[:limit]
 
     def verify_record(self, record, payload: dict) -> bool:
         action_log = payload.get("action_log", [])
-        if not self._validate_action_log(action_log, record.clear_time):
+        if not self._validate_action_log(action_log, record.clear_time_ns):
             return False
 
         wrong_answers = payload.get("wrong_answers", [])
@@ -125,7 +133,7 @@ class GameService:
         return verifier.verify(payload)
 
     @staticmethod
-    def _validate_action_log(action_log: list[dict], clear_time: int) -> bool:
+    def _validate_action_log(action_log: list[dict], clear_time_ns: int) -> bool:
         if not action_log:
             return False
         if len(action_log) < 2:
@@ -145,5 +153,6 @@ class GameService:
             return False
         if duration_ms < 1000: # Minimum 1 second
             return False
-            
-        return duration_ms <= (clear_time + 5) * 1000 # Allow 5s buffer
+
+        clear_time_ms = max(1, clear_time_ns // 1_000_000)
+        return duration_ms <= (clear_time_ms + 5000)  # Allow 5s buffer

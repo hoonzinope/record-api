@@ -49,7 +49,8 @@ class RecordCreateRequest(BaseModel):
     level: str
     user_uuid: str
     nickname: Optional[str] = None
-    clear_time: int = Field(..., gt=0)
+    clear_time: Optional[int] = Field(default=None, gt=0)
+    clear_time_ns: Optional[int] = Field(default=None, gt=0)
     score: int = 0
     mistake_count: int = Field(0, ge=0)
     hint_count: int = Field(0, ge=0)
@@ -77,6 +78,7 @@ def record_to_dict(record: GameRecord) -> dict:
         "user_uuid": record.user_uuid,
         "nickname": record.nickname,
         "clear_time": record.clear_time,
+        "clear_time_ns": record.clear_time_ns,
         "score": record.score,
         "mistake_count": record.mistake_count,
         "hint_count": record.hint_count,
@@ -144,6 +146,15 @@ def insert_game_record(payload: RecordCreateRequest, request: Request, _: None =
         raise HTTPException(status_code=400, detail="Hint events list too large")
     if len(payload.action_log) > MAX_LIST_LEN:
         raise HTTPException(status_code=400, detail="Action log too large")
+    clear_time_ns = payload.clear_time_ns
+    clear_time = payload.clear_time
+    if clear_time_ns is None:
+        if clear_time is None:
+            raise HTTPException(status_code=400, detail="clear_time_ns is required")
+        clear_time_ns = int(clear_time * 1_000_000_000)
+    if clear_time is None:
+        clear_time = max(1, clear_time_ns // 1_000_000_000)
+
     # Detect real user IP behind Cloudflare/Nginx
     x_forwarded_for = request.headers.get("X-Forwarded-For")
     user_ip = (
@@ -158,7 +169,8 @@ def insert_game_record(payload: RecordCreateRequest, request: Request, _: None =
         level=payload.level,
         user_uuid=payload.user_uuid,
         nickname=nickname,
-        clear_time=payload.clear_time,
+        clear_time=clear_time,
+        clear_time_ns=clear_time_ns,
         score=payload.score,
         mistake_count=payload.mistake_count,
         hint_count=payload.hint_count,
@@ -215,6 +227,7 @@ def get_ranking(game_name: str, level: str, limit: int = 10, _: None = Depends(v
                 "user_uuid": record.user_uuid,
                 "nickname": record.nickname,
                 "clear_time": record.clear_time,
+                "clear_time_ns": record.clear_time_ns,
                 "score": record.score,
                 "mistake_count": record.mistake_count,
                 "hint_count": record.hint_count,

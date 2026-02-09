@@ -1,10 +1,13 @@
 from utils.verifier.base import BaseVerifier
 from utils.verifier.games.game_2048 import Game2048Verifier
 from utils.verifier.games.hidato import HidatoVerifier
+from utils.verifier.games.kordle import KordleVerifier
 from utils.verifier.games.killer_sudoku import KillerSudokuVerifier
 from utils.verifier.games.nonogram import NonogramVerifier
 from utils.verifier.games.shikaku import ShikakuVerifier
 from utils.verifier.games.sudoku import SudokuVerifier
+from utils.verifier.games.tetris import TetrisVerifier
+from utils.verifier.games.wordle import WordleVerifier
 
 DEFAULT_VERIFIER = BaseVerifier()
 
@@ -17,6 +20,9 @@ VERIFIER_MAP = {
     "shikaku": ShikakuVerifier(),
     "jigsaw-sudoku": DEFAULT_VERIFIER,
     "woodoku": DEFAULT_VERIFIER,
+    "tetris": TetrisVerifier(),
+    "wordle": WordleVerifier(),
+    "kordle": KordleVerifier(),
 }
 
 

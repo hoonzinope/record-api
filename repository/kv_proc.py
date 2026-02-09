@@ -6,6 +6,7 @@ import redis
 
 from env import Env
 from model.game_record import GameRecord
+from utils.ranking_policy import get_clear_time_ns, redis_score_for, sort_key_for
 
 class KvProc:
     def __init__(self) -> None:
@@ -38,7 +39,7 @@ class KvProc:
             return
         key = f"ranking:{record.game_name}:{record.level}"
         member = self._encode_member(record)
-        score = record.clear_time
+        score = redis_score_for(record.game_name, record)
         self.redis.zadd(key, {member: score})
 
     def insert_game_records(self, records: list[GameRecord]) -> None:
@@ -50,7 +51,7 @@ class KvProc:
                 continue
             key = f"ranking:{record.game_name}:{record.level}"
             member = self._encode_member(record)
-            score = record.clear_time
+            score = redis_score_for(record.game_name, record)
             pipeline.zadd(key, {member: score})
         pipeline.execute()
 
@@ -65,13 +66,8 @@ class KvProc:
             if not record or not record.is_verified:
                 continue
             result.append(record)
-            result.append(record)
-        
-        if game_name in ['woodoku', '2048']:
-            result.sort(key=lambda item: item.score, reverse=True)
-        else:
-            result.sort(key=lambda item: (item.clear_time, item.mistake_count, item.hint_count))
-            
+
+        result.sort(key=lambda item: sort_key_for(game_name, item))
         return result[:limit]
 
     @staticmethod
@@ -80,9 +76,9 @@ class KvProc:
             "user_uuid": record.user_uuid,
             "nickname": record.nickname,
             "clear_time": record.clear_time,
+            "clear_time_ns": get_clear_time_ns(record),
             "mistake_count": record.mistake_count,
             "hint_count": record.hint_count,
-            "is_verified": record.is_verified,
             "is_verified": record.is_verified,
             "user_ip": record.user_ip,
             "score": record.score,
@@ -98,12 +94,19 @@ class KvProc:
             except json.JSONDecodeError:
                 return None
             clear_time = KvProc._safe_int(data.get("clear_time"))
+            clear_time_ns = KvProc._safe_int(data.get("clear_time_ns"))
             mistake_count = KvProc._safe_int(data.get("mistake_count"))
             hint_count = KvProc._safe_int(data.get("hint_count"))
             score = KvProc._safe_int(data.get("score"))
             if score is None:
                 score = 0
-            if clear_time is None or mistake_count is None or hint_count is None:
+            if clear_time_ns is None:
+                if clear_time is None:
+                    return None
+                clear_time_ns = clear_time * 1_000_000_000
+            if clear_time is None:
+                clear_time = max(1, clear_time_ns // 1_000_000_000)
+            if mistake_count is None or hint_count is None:
                 return None
             return GameRecord(
                 game_name=game_name,
@@ -111,6 +114,7 @@ class KvProc:
                 user_uuid=str(data.get("user_uuid", "")),
                 nickname=str(data.get("nickname", "")),
                 clear_time=clear_time,
+                clear_time_ns=clear_time_ns,
                 mistake_count=mistake_count,
                 hint_count=hint_count,
                 is_verified=bool(data.get("is_verified", False)),
@@ -128,12 +132,14 @@ class KvProc:
         hint_count_value = KvProc._safe_int(hint_count)
         if clear_time_value is None or mistake_count_value is None or hint_count_value is None:
             return None
+        clear_time_ns_value = clear_time_value * 1_000_000_000
         return GameRecord(
             game_name=game_name,
             level=level,
             user_uuid=user_uuid,
             nickname=nickname,
             clear_time=clear_time_value,
+            clear_time_ns=clear_time_ns_value,
             mistake_count=mistake_count_value,
             hint_count=hint_count_value,
             is_verified=is_verified == "True",
@@ -177,7 +183,7 @@ class KvProc:
 
     def insert_game_session(self, game_name: str, level: str, user_uuid: str) -> None:
         key = f"session:{game_name}:{level}:{user_uuid}"
-        start_time = f"{int(time.time())}"
+        start_time = f"{time.time_ns()}"
         self.redis.set(key, start_time, ex=3600)  # 세션 유효기간 1시간
 
     def check_game_session(self, game_name: str, level: str, user_uuid: str) -> bool:
